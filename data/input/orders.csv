@@ -1,0 +1,6 @@
+order_id,order_date,product,quantity,unit_price,status
+1,2026-01-01,Keyboard,2,50.00,Completed
+2,2026-01-01,Mouse,1,25.00,Cancelled
+3,2026-01-02,Keyboard,1,50.00,Completed
+4,2026-01-02,Monitor,-1,200.00,Completed
+5,2026-01-02,Mouse,3,25.00,Completed
