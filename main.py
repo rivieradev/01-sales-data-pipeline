@@ -14,6 +14,7 @@ def validate_orders(orders: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         | orders["order_date"].isna()
         | (orders["quantity"] <= 0)
         | (orders["unit_price"] < 0)
+        | (orders["customer_country"].isna())
     )
 
     valid_orders = orders.loc[~invalid_mask].copy()
@@ -30,7 +31,7 @@ def calculate_daily_revenue(orders: pd.DataFrame) -> pd.DataFrame:
     ).round(2)
 
     return (
-        completed.groupby("order_date", as_index=False)["line_total"]
+        completed.groupby(["order_date", "customer_country"], as_index=False)["line_total"]
         .sum()
         .rename(columns={"line_total": "revenue"})
         .sort_values("order_date")
@@ -50,7 +51,7 @@ def main():
     print("Daily revenue")
     print(daily_revenue.to_string(index=False))
     print(f"\nAccepted records: {len(valid_orders)}")
-    print(f"\Rejected records: {len(rejected_orders)}")
+    print(f"\nRejected records: {len(rejected_orders)}")
 
 
 if __name__ == "__main__":
