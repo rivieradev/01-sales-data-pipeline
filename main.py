@@ -8,19 +8,40 @@ OUTPUT_DIRECTORY = Path("data/output")
 def load_orders() -> pd.DataFrame:
     return pd.read_csv(INPUT_FILE, parse_dates=["order_date"])
 
+def get_rejection_reason(row):
+    reasons = []
+
+    if pd.isna(row["order_id"]):
+        reasons.append("missing_order_id")
+
+    if pd.isna(row["order_date"]):
+        reasons.append("missing_order_date")
+
+    if row["quantity"] <= 0:
+        reasons.append("negative_zero_quantity")
+
+    if row["unit_price"] < 0:
+        reasons.append("negative_unit_price")
+
+    if pd.isna(row["customer_country"]):
+        reasons.append("missing_customer_country")
+
+    return ", ".join(reasons)
+
+
+
 def validate_orders(orders: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-    invalid_mask = (
-        orders["order_id"].isna()
-        | orders["order_date"].isna()
-        | (orders["quantity"] <= 0)
-        | (orders["unit_price"] < 0)
-        | (orders["customer_country"].isna())
+    orders["rejection_reason"] = orders.apply(
+        get_rejection_reason,
+        axis=1
     )
+
+    invalid_mask = orders["rejection_reason"] != ""
+
+    #print(orders.head())
 
     valid_orders = orders.loc[~invalid_mask].copy()
     rejected_orders = orders.loc[invalid_mask].copy()
-
-    rejected_orders["rejection_reason"] = "Invalid required value"
 
     return valid_orders, rejected_orders
 
