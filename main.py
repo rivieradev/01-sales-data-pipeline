@@ -18,17 +18,15 @@ def get_rejection_reason(row):
         reasons.append("missing_order_date")
 
     if row["quantity"] <= 0:
-        reasons.append("negative_zero_quantity")
+        reasons.append("quantity_must_be_positive")
 
     if row["unit_price"] < 0:
-        reasons.append("negative_unit_price")
+        reasons.append("unit_price_must_be_positive")
 
     if pd.isna(row["customer_country"]):
         reasons.append("missing_customer_country")
 
     return ", ".join(reasons)
-
-
 
 def validate_orders(orders: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     orders["rejection_reason"] = orders.apply(
@@ -37,11 +35,13 @@ def validate_orders(orders: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     )
 
     invalid_mask = orders["rejection_reason"] != ""
+    duplicate_mask = orders["order_id"].duplicated(keep=False)
+    orders.loc[duplicate_mask, "rejection_reason"] = "duplicate_order_id"
 
     #print(orders.head())
 
-    valid_orders = orders.loc[~invalid_mask].copy()
-    rejected_orders = orders.loc[invalid_mask].copy()
+    valid_orders = orders.loc[~invalid_mask & ~duplicate_mask].copy()
+    rejected_orders = orders.loc[invalid_mask | duplicate_mask].copy()
 
     return valid_orders, rejected_orders
 
