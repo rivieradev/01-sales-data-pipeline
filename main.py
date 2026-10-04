@@ -8,40 +8,72 @@ OUTPUT_DIRECTORY = Path("data/output")
 def load_orders() -> pd.DataFrame:
     return pd.read_csv(INPUT_FILE, parse_dates=["order_date"])
 
-def get_rejection_reason(row):
+def get_rejection_reason(row, duplicate_id: set) -> str:
     reasons = []
 
     if pd.isna(row["order_id"]):
         reasons.append("missing_order_id")
+    elif row["order_id"] in duplicate_id:
+        reasons.append("duplicate_order_id")
 
     if pd.isna(row["order_date"]):
         reasons.append("missing_order_date")
 
-    if row["quantity"] <= 0:
+    if pd.isna(row["quantity"]):
+        reasons.append("missing_quantity")
+    elif row["quantity"] <= 0:
         reasons.append("quantity_must_be_positive")
 
-    if row["unit_price"] < 0:
+    if (pd.isna(row["unit_price"])):
+        reasons.append("missing_unit_price")
+    elif row["unit_price"] < 0:
         reasons.append("unit_price_must_be_positive")
 
-    if pd.isna(row["customer_country"]):
+    country = row["customer_country"]
+
+    if pd.isna(country) or str(country).strip() == "":
         reasons.append("missing_customer_country")
+
+    allowed_statuses = {"Completed", "Cancelled"}
+
+    if pd.isna(row["status"]):
+        reasons.append("missing_status")
+    elif row["status"] not in allowed_statuses:
+        reasons.append("invalid_status")
 
     return ", ".join(reasons)
 
 def validate_orders(orders: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    orders = orders.copy()
+
+    orders["quantity"] = pd.to_numeric(
+        orders["quantity"],
+        errors="coerce"
+    )
+
+    orders["unit_price"] = pd.to_numeric(
+        orders["unit_price"],
+        errors="coerce"
+    )
+
+    duplicate_mask = (
+        orders["order_id"].notna()
+        & orders["order_id"].duplicated(keep=False)
+    )
+
+    duplicate_ids = set(
+        orders.loc[duplicate_mask, "order_id"]
+    )
+
     orders["rejection_reason"] = orders.apply(
-        get_rejection_reason,
+        lambda row: get_rejection_reason(row, duplicate_ids),
         axis=1
     )
 
-    invalid_mask = orders["rejection_reason"] != ""
-    duplicate_mask = orders["order_id"].duplicated(keep=False)
-    orders.loc[duplicate_mask, "rejection_reason"] = "duplicate_order_id"
+    invalid_mask = orders["rejection_reason"].ne("")
 
-    #print(orders.head())
-
-    valid_orders = orders.loc[~invalid_mask & ~duplicate_mask].copy()
-    rejected_orders = orders.loc[invalid_mask | duplicate_mask].copy()
+    valid_orders = orders.loc[~invalid_mask].copy()
+    rejected_orders = orders.loc[invalid_mask].copy()
 
     return valid_orders, rejected_orders
 
@@ -55,7 +87,7 @@ def calculate_daily_revenue(orders: pd.DataFrame) -> pd.DataFrame:
         completed.groupby(["order_date", "customer_country"], as_index=False)["line_total"]
         .sum()
         .rename(columns={"line_total": "revenue"})
-        .sort_values("order_date")
+        .sort_values(["order_date", "customer_country"])
     )
 
 
